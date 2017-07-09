@@ -1,0 +1,161 @@
+clear all,close all;
+clc;
+%% input parameter %%
+k1   = 36.6; %bulk modulus quartz Gpa
+k2   = 27; % bulk modulus dry clay Gpa
+k3   = 4.52; %bulk modulus coal
+mu1  = 45; % shear modulus quartz Gpa
+mu2  = 17; % shear modulus dry clay Gpa
+mu3  = 2.61; %shear modulus coal
+
+% fluid modulus
+Kb =2.1;
+Kg =0.039;
+Ko =1.232;
+
+%% input data
+DATA=load('rombongin1.dat');
+Depth = DATA(:,1);
+Vpori = DATA(:,2);
+rhob  = DATA(:,3);
+por   = DATA(:,4);
+sb    = DATA(:,5);
+vdcl  = DATA(:,6);
+vqz   = DATA(:,7);
+ndata=length(Depth);
+
+%% Kgrain calculation %%%%%%%%%%%%%%%% Berryman
+f1 = vqz;
+f2 = vdcl;
+%f3 = vcoal;
+%[kavg,gavg] = berrym(k1,k2,k3,mu1,mu2,mu3,f1,f2,f3);
+[kavg,gavg]= khash(k1,k2,mu1,mu2,f1,f2);
+%[kavg,gavg]= kvr(k1,k2,mu1,mu2,f1,f2); %Voigt-Reuss-Hill
+[Kreuss,Kvoigt,Kfluid] = vrh(sb,Kb,Ko,Kg);
+   
+%% Newton rhapson opt
+%xdata(:,1)=smooth(kavg,9,'moving'); xdata(:,2)=smooth(gavg,9,'moving'); 
+%xdata(:,3)=smooth(por,9,'moving'); xdata(:,4)=smooth(sb,9,'moving'); 
+%xdata(:,5)=smooth(rhob,9,'moving');xdata(:,6)=smooth(Kfluid,9,'moving'); ; %xdata(1:3,7)=mux;
+%Vpori=smooth(Vpori,11,'moving');
+
+%options = optimset('Algorithm','trust-region-reflective','ScaleProblem','Jacobian','TolX',1e-4,'TolFun',1e-4);
+%alfa0 = 5.+(por-por);                    % Starting guess
+%lb    = 1/100.+(por-por);
+%ub    = 100.+(por-por);
+%[alfa] = lsqcurvefit(@vpfun,alfa0,xdata,Vpori,lb,ub,options);
+
+%% calculating kfluid %
+sg =1.-sb;
+so =1.-sb-sg;
+Kfluid=1./(sb./Kb+sg./Kg); %% reuss uniformly mixing
+
+Cd = (por)./ Kfluid;
+    
+%%  calculating kdry and mhudry %
+%====================================================================
+alfa = [2:0.02:40];
+alfa=alfa';
+nalfa=length(alfa);
+gama =(1+2.*alfa)./(1.+alfa); %gamma
+
+%%alfa optimalization %
+for i=1:ndata
+        kdry = (kavg(i)*(1-por(i)))./(1.+alfa.*por(i));
+        gdry = (gavg(i)*(1-por(i)))./(1.+(gama.*alfa).*por(i));
+   
+    %% Vp Vs calculation %
+    Bd = 1. - (kdry./kavg(i)); %(Biot Coefficient)%
+
+    %Ksat
+    Dd = (Bd-por(i))./kavg(i);
+    Ksat= kdry + ((Bd.^2)./(Cd(i)+Dd));
+    gsat= gdry;
+
+    %Vp trial%
+    VpLee = 1000.*(sqrt ((Ksat + 4/3.*gsat)./(rhob(i))));
+    Vperror=Vpori(i)-VpLee;
+    
+    alfatake(i)=alfa(1);
+    errortake(i)=Vperror(1);
+    for j=1:(nalfa-1)
+        if (abs(Vperror(j))>abs(Vperror(j+1)));
+            alfatake(i)=alfa(j+1);
+            errortake(i)=Vperror(j+1);
+        end
+    end
+end
+alfatake=alfatake';
+errortake=errortake';
+gamatake=(1+2.*alfatake)./(1.+alfatake);
+kdrytake = (kavg.*(1.-por))./(1.+alfatake.*por);
+gdrytake = (gavg.*(1.-por))./(1.+(gamatake.*alfatake).*por);
+  
+Bdtake = 1.-(kdrytake./kavg); %(Biot Coefficient)%
+
+%Ksat
+Ddtake = (Bdtake-por)./kavg;
+Ksattake= kdrytake + ((Bdtake.^2)./(Cd+Ddtake));
+gsattake= gdrytake;
+VpLeetake = 1000.*(sqrt ((Ksattake + 4/3.*gsattake)./(rhob)));
+VsLeetake = 1000.*(sqrt (gsattake./(rhob)));
+
+figure(1)
+subplot(1,4,1)
+plot(Vpori,(-1*Depth), 'LineWidth',1);
+title('VpOri(blue) VpPred(red)', 'fontweight', 'bold', 'fontsize', 18);
+xlabel ('Vp(m/s)');
+ylabel ('Depth (ft)');
+xlim([500 4000]);
+grid on;
+hold on;
+plot(VpLeetake, (-1*Depth),'LineWidth',1,'Color','red');
+subplot(1,4,2)
+plot(errortake, (-1*Depth),'LineWidth',1);
+title('VpOri-VpPred', 'fontweight', 'bold', 'fontsize', 18);
+xlabel ('Vp(m/s)');
+ylabel ('Depth (ft)');
+xlim([-1000 1000]);
+grid on;
+subplot(1,4,3)
+plot(VsLeetake, (-1*Depth),'LineWidth',1);
+title('Vs Prediction', 'fontweight', 'bold', 'fontsize', 18);
+xlabel ('Vs(m/s)');
+ylabel ('Depth (ft)');
+xlim([500 4000]);
+grid on;
+subplot(1,4,4)
+plot(alfatake, (-1*Depth),'LineWidth',1);
+title('Alfa', 'fontweight', 'bold', 'fontsize', 18);
+xlabel ('alfa (unitless)');
+ylabel ('Depth (ft)');
+xlim([0 20]);
+grid on;
+
+figure(2)
+plot(Vpori,VpLeetake,'x');
+title('VpOriginal vs VpPrediction', 'fontweight', 'bold', 'fontsize', 18);
+xlabel ('Vp Original (m/s)', 'fontweight', 'bold', 'fontsize', 12);
+ylabel ('Vp Prediction (m/s)', 'fontweight', 'bold', 'fontsize', 12);
+
+figure(3)
+plot(Vpori,VsLeetake,'o');
+title('VpOriginal vs VsPrediction', 'fontweight', 'bold', 'fontsize', 18);
+xlabel ('Vp Original (m/s)', 'fontweight', 'bold', 'fontsize', 12);
+ylabel ('Vs Prediction (m/s)', 'fontweight', 'bold', 'fontsize', 12);
+axis equal;
+
+content=[Depth Vpori VpLeetake errortake VsLeetake alfatake];
+save('hasilrunning.dat','-ascii','content');
+
+ 
+    
+%% Excel output
+%Vel_pred = [Depth Vpori VpLee VsLee alfa por];
+%Lgn1     = {'Depth','Vpori','VpLee','VsLee','alfa','por'};
+%Lgn2     = {'Depth','por','vsl','sb'};
+%Input    = [Depth por vdcl sb];
+%xlswrite('F:\Thesis\Matlab_Thesis\Data\MLP-2\Vp_predict_MLP',Vel_pred, 'Vel_Pred', 'A1');
+%xlswrite('F:\Thesis\Matlab_Thesis\Data\MLP-2\Vp_predict_MLP',Lgn1, 'Legend1', 'A1');
+%xlswrite('F:\Thesis\Matlab_Thesis\Data\MLP-2\Vp_predict_MLP',Input, 'Input', 'A1');
+%xlswrite('F:\Thesis\Matlab_Thesis\Data\MLP-2\Vp_predict_MLP',Lgn2, 'Legend2', 'A1');    
