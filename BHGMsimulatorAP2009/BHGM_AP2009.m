@@ -279,8 +279,8 @@ for q=1:number
 end
 
 figure (2)
-plot(gbaru,-ii0); hold on;
-title('log borehole', 'fontweight', 'bold', 'fontsize', 18);
+plot(gbaru,-ii0,'LineWidth',2); hold on; grid on;
+title('Log Borehole Gravity', 'fontweight', 'bold', 'fontsize', 18);
 xlabel ('mGal');
 ylabel ('depth');
 hold on;
@@ -333,19 +333,21 @@ for q=1:number
         gbaru=gbaru+g;
 end
 figure (3)
-colormap winter
+subplot (2,1,1)
+colormap jet
 surf(x0,y0,gbaru); hold on;
-title('peta anomali gravity', 'fontweight', 'bold', 'fontsize', 18);
+shading interp;
+title('Surface Anomaly Gravity', 'fontweight', 'bold', 'fontsize', 18);
 xlabel ('X');
 ylabel ('Y');
 zlabel ('mGal');
 hold on;
 
-figure (4)
+subplot (2,1,2)
 contourf(x0,y0,gbaru); hold on;
-colormap cool
+colormap jet
 colorbar('location','southoutside')
-title('Kontur Gravity 3D', 'fontweight', 'bold', 'fontsize', 18);
+title('Kontur Respon Gravity', 'fontweight', 'bold', 'fontsize', 18);
 xlabel ('X');
 ylabel ('Y');
 hold on;
@@ -462,15 +464,32 @@ y0=[by:gy:ay];
 nx0=length(x0);
 ny0=length(y0);
 
+xxx=get(handles.inputX_editbutton,'String');
+xx=str2double(xxx);
+yyy=get(handles.inputY_editbutton,'String');
+yy=str2double(yyy);
+
+aaa=get(handles.start_editbutton,'String');
+ab=str2double(aaa);
+bbb=get(handles.finish_editbutton,'String');
+bb=str2double(bbb);
+iii=get(handles.interval_editbutton,'String');
+ii=str2double(iii);
+
 figure (1)
 tt=[bx by bz;ax by bz;ax ay bz;bx ay bz;bx ay -az;bx by -az;ax ay -az;ax ay -az]; 
 plot3(tt(:,1),tt(:,2),tt(:,3),'-w'); grid on;
-title('Posisi anomaly', 'fontweight', 'bold', 'fontsize', 18);
+title('Body Anomaly', 'fontweight', 'bold', 'fontsize', 18);
 xlabel ('X');
 ylabel ('Y');
 zlabel ('kedalaman'); hold on;
 for m=1:number
     bbb=plotcube([x(m) y(m) -z(m)],[2*gx 2*gy 2*gz],[0 0 0],[1 1 1 1 1 1 1 1],0.5,1);hold on;
+end
+hold on
+vv = ab:ii:bb;
+for lb = 1:length(vv)
+    ccc = plotcube([xx yy -vv(lb)],[0.5*gx 0.5*gy ii],[0 0 0],[0.2 0.2 0.2 0.2 0.2 0.2 0.2 0.2],1,0);hold on;
 end
 
 function handle = plotcube(coordinates,size,orientation,color8,transparency,LineOnOff)
@@ -527,30 +546,31 @@ for n=1:nii
                 y(1)=yy-yb; y(2)=yy-ya;
                 z(1)=ii0(n)-zb; z(2)=ii0(n)-za;
             
-                rijk=sqrt(x(i)^2+y(j)^2+z(k)^2);
+                rijk=sqrt((x(i).^2)+(y(j).^2)+(z(k).^2));
                 ijk=isign(i)*isign(j)*isign(k);
                 arg1=atan2((x(i)*y(j)),(z(k)*rijk));
                 if lt(arg1,0.)
-                    arg1=arg1+2*pi;
+                    arg1=arg1+(2*pi);
                 end
-                arg2=rijk+y(j);
-                if gt(arg2,0.)
-                   arg2=log(arg2);
-                else
-                    error ('GBOX:  Bad field point');
+
+                if (y(j)==-rijk)
+                    y(j) = rijk;
+                end
+                arg2=rijk+y(j); 
+                arg2=log(arg2);
+              
+                if (x(i)==-rijk)
+                    x(i) = rijk;
                 end
                 arg3=rijk+x(i);
-                if gt(arg3,0.)
-                   arg3=log(arg3);
-                else
-                    error ('GBOX:  Bad field point');
-                end
-                sum=sum+ijk*(z(k)*arg1-x(i)*arg2-y(j)*arg3);
+                arg3=log(arg3);
+                sum = sum + ijk*((z(k)*arg1)-(x(i)*arg2)-(y(j)*arg3));
                 end
             end
         end
    g(n)=rho*G*sum*cgs2mig*m2cm;
 end
+
 
 function g=kotaksurface(x0,y0,z0,xb,yb,zb,xa,ya,za,nx0,ny0,rho)
 G=6.670e-8;
@@ -567,25 +587,25 @@ for n=1:ny0;
                 y(1)=y0(n)-yb; y(2)=y0(n)-ya;
                 z(1)=z0-zb; z(2)=z0-za;
             
-                rijk=sqrt(x(i)^2+y(j)^2+z(k)^2);
+               rijk=sqrt((x(i).^2)+(y(j).^2)+(z(k).^2));
                 ijk=isign(i)*isign(j)*isign(k);
                 arg1=atan2((x(i)*y(j)),(z(k)*rijk));
-                if lt(arg1,0.);
-                    arg1=arg1+2*pi;
+                if lt(arg1,0.)
+                    arg1=arg1+(2*pi);
                 end
-                arg2=rijk+y(j);
-                if gt(arg2,0.);
-                   arg2=log(arg2);
-                else
-                    error ('GBOX:  Bad field point');
+
+                if (y(j)==-rijk)
+                    y(j) = rijk;
+                end
+                arg2=rijk+y(j); 
+                arg2=log(arg2);
+              
+                if (x(i)==-rijk)
+                    x(i) = rijk;
                 end
                 arg3=rijk+x(i);
-                if gt(arg3,0.);
-                   arg3=log(arg3);
-                else
-                    error ('GBOX:  Bad field point');
-                end
-                sum=sum+ijk*(z(k)*arg1-x(i)*arg2-y(j)*arg3);
+                arg3=log(arg3);
+                sum = sum + ijk*((z(k)*arg1)-(x(i)*arg2)-(y(j)*arg3));
                 end
             end
         end
